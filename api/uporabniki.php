@@ -8,6 +8,35 @@
   header('Access-Control-Allow-Origin: *');	// Dovolimo dostop izven trenutne domene (CORS)
   header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 
+  if ($_SERVER["REQUEST_METHOD"] != 'POST'){ //no cookie when loggin in or registrating
+    $podatki = json_decode(file_get_contents('php://input'), true); //za avtentikacijo s piskotkom
+    if (!isset($podatki["auth_cookie"]) && !isset($_GET["auth_cookie"])){
+      http_response_code(403); //auth failed, cookie not set
+      exit(); //ne it na switch statement
+    }
+    else {
+      $ac = ''; //auth cookie
+      $ui = ''; //uporabnisko ime
+      if (isset($podatki["auth_cookie"])){ //put, post
+        $ac = mysqli_escape_string($zbirka, $podatki["auth_cookie"]);
+        $ui = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
+      }
+      else { //get, delete
+        $ac = $_GET["auth_cookie"];
+        $ui = mysqli_escape_string($zbirka, $_GET["uporabnisko_ime"]);
+      }
+      $poizvedba = "SELECT auth_cookie FROM uporabniki WHERE uporabnisko_ime = '$ui'";
+      $rezultat = mysqli_query($zbirka, $poizvedba);
+      $vrstica = mysqli_fetch_assoc($rezultat);
+      if ($vrstica["auth_cookie"] != $ac){
+        echo "ac from js: " . $ac . "\n";
+        echo "ac from db: " . $vrstica["auth_cookie"] . "\n";
+        http_response_code(403); //auth failed, cookie is wrong
+        exit(); //ne it na switch statement
+      }
+    }
+  }
+
   switch($_SERVER["REQUEST_METHOD"]){
 
 	case 'POST':
@@ -25,9 +54,8 @@
 
   case 'GET':
     if (isset($_GET["uporabnisko_ime"])){
-      if ($_GET["uporabnisko_ime"] == "currentUser"){
-        session_start();
-        $_GET["uporabnisko_ime"] = $_SESSION['uporabnisko_ime'];
+      if (isset($_GET["voznik"])){
+        $_GET["uporabnisko_ime"] = $_GET["voznik"];
       }
       pridobi_uporabnika($_GET["uporabnisko_ime"]);
     }
@@ -113,9 +141,19 @@ function prijava_uporabnika(){
       if (password_verify($geslo, $hashDB)){
         http_response_code(200);
 
-        session_start();
-        $_SESSION['loggedin'] = true;
-        $_SESSION['uporabnisko_ime'] = $uporabnisko_ime;
+        $hash = substr(str_replace(['+', '/', '='], '', base64_encode(random_bytes(50))), 0, 50); // 50 characters, without /=+, plus causes a problem later
+        $odg = array();
+        $odg["auth_cookie"] = $hash;
+
+        $poizvedba2="UPDATE uporabniki SET auth_cookie = '$hash' WHERE uporabnisko_ime = '$uporabnisko_ime'";
+
+        if(mysqli_query($zbirka, $poizvedba2)){
+          echo json_encode($odg);
+          http_response_code(200);
+        }
+        else{
+          http_response_code(500);
+        }
       }
       else {
         http_response_code(404);
@@ -133,14 +171,12 @@ function posodobi_uporabnika(){
   global $zbirka;
   $podatki = json_decode(file_get_contents('php://input'), true);
 
-  session_start();
-  $uporabnisko_ime = $_SESSION['uporabnisko_ime'];
-
-  if (isset($podatki["geslo"], $podatki["ime"], $podatki["priimek"], $podatki["email"])){
+  if (isset($podatki["geslo"], $podatki["ime"], $podatki["priimek"], $podatki["email"], $podatki["uporabnisko_ime"])){
 
     $ime = mysqli_escape_string($zbirka, $podatki["ime"]);
     $priimek = mysqli_escape_string($zbirka, $podatki["priimek"]);
     $email = mysqli_escape_string($zbirka, $podatki["email"]);
+    $uporabnisko_ime = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
 
     if (mysqli_escape_string($zbirka, $podatki["geslo"]) == "*********"){
       $poizvedba="UPDATE uporabniki SET ime = '$ime', priimek = '$priimek', email ='$email' WHERE uporabnisko_ime = '$uporabnisko_ime' ";

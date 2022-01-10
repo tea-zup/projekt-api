@@ -8,6 +8,33 @@
   header('Access-Control-Allow-Origin: *');	// Dovolimo dostop izven trenutne domene (CORS)
   header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 
+  $podatki = json_decode(file_get_contents('php://input'), true); //za avtentikacijo s piskotkom
+  if (!isset($podatki["auth_cookie"]) && !isset($_GET["auth_cookie"])){
+    http_response_code(403); //auth failed, cookie not set
+    exit(); //ne it na switch statement
+  }
+  else {
+    $ac = ''; //auth cookie
+    $ui = ''; //uporabnisko ime
+    if (isset($podatki["auth_cookie"])){ //put, post
+      $ac = mysqli_escape_string($zbirka, $podatki["auth_cookie"]);
+      $ui = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
+    }
+    else { //get, delete
+      $ac = $_GET["auth_cookie"];
+      $ui = mysqli_escape_string($zbirka, $_GET["uporabnisko_ime"]);
+    }
+    $poizvedba = "SELECT auth_cookie FROM uporabniki WHERE uporabnisko_ime = '$ui'";
+    $rezultat = mysqli_query($zbirka, $poizvedba);
+    $vrstica = mysqli_fetch_assoc($rezultat);
+    if ($vrstica["auth_cookie"] != $ac){
+      echo "ac from js: " . $ac . "\n";
+      echo "ac from db: " . $vrstica["auth_cookie"] . "\n";
+      http_response_code(403); //auth failed, cookie is wrong
+      exit(); //ne it na switch statement
+    }
+  }
+
   switch($_SERVER["REQUEST_METHOD"]){
 
 	case 'GET':
@@ -15,9 +42,8 @@
     if (isset($_GET["cas_odhoda"])){ // klice se filter prevozov
       filterPrevozi();
     }
-    else if (isset($_GET["uporabnisko_ime"])) {
-      session_start();
-      uporabnikPonudbe($_SESSION['uporabnisko_ime']);
+    else if (isset($_GET["uporabnisko_ime"]) && isset($_GET["moje_ponudbe"])) {
+      uporabnikPonudbe($_GET["uporabnisko_ime"]);
     }
     else if (isset($_GET["id"])) {
       pridobiPotnike($_GET["id"]);
@@ -93,7 +119,7 @@ function uporabnikPonudbe($uporabnisko_ime){
   $uporabnisko_ime = mysqli_escape_string($zbirka, $uporabnisko_ime);
 
   $odgovor = array();
-  $poizvedba = "SELECT id, kraj_odhoda, kraj_prihoda, cas_odhoda, cena, prosta_mesta FROM prevozi WHERE voznik = '$uporabnisko_ime' ORDER BY cas_odhoda ASC";
+  $poizvedba = "SELECT id, kraj_odhoda, kraj_prihoda, cas_odhoda, cena, prosta_mesta FROM prevozi WHERE voznik = '$uporabnisko_ime' AND cas_odhoda > NOW() ORDER BY cas_odhoda ASC";
   $rezultat = mysqli_query($zbirka, $poizvedba);
   while ($vrstica = mysqli_fetch_assoc($rezultat)) {
     $sum = 0;
@@ -116,14 +142,13 @@ function dodajPrevoz(){
   global $zbirka;
   $podatki = json_decode(file_get_contents('php://input'), true);
 
-  if(isset($podatki["kraj_odhoda"], $podatki["kraj_prihoda"], $podatki["cas_odhoda"], $podatki["prosta_mesta"], $podatki["cena"])){
+  if(isset($podatki["kraj_odhoda"], $podatki["kraj_prihoda"], $podatki["cas_odhoda"], $podatki["prosta_mesta"], $podatki["cena"], $podatki["uporabnisko_ime"])){
     $kraj_odhoda = mysqli_escape_string($zbirka, $podatki["kraj_odhoda"]);
     $kraj_prihoda = mysqli_escape_string($zbirka, $podatki["kraj_prihoda"]);
     $cas_odhoda = mysqli_escape_string($zbirka, $podatki["cas_odhoda"]);
     $prosta_mesta = mysqli_escape_string($zbirka, $podatki["prosta_mesta"]);
     $cena = mysqli_escape_string($zbirka, $podatki["cena"]);
-    session_start();
-    $voznik= $_SESSION['uporabnisko_ime'];
+    $voznik = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
 
     $poizvedba="INSERT INTO prevozi (id, voznik, kraj_odhoda, kraj_prihoda, cas_odhoda, prosta_mesta, cena) VALUES (NULL, '$voznik', '$kraj_odhoda', '$kraj_prihoda', '$cas_odhoda', '$prosta_mesta', '$cena')";
 

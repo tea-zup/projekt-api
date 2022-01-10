@@ -8,11 +8,37 @@
   header('Access-Control-Allow-Origin: *');	// Dovolimo dostop izven trenutne domene (CORS)
   header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 
+  $podatki = json_decode(file_get_contents('php://input'), true); //za avtentikacijo s piskotkom
+  if (!isset($podatki["auth_cookie"]) && !isset($_GET["auth_cookie"])){
+    http_response_code(403); //auth failed, cookie not set
+    exit(); //ne it na switch statement
+  }
+  else {
+    $ac = ''; //auth cookie
+    $ui = ''; //uporabnisko ime
+    if (isset($podatki["auth_cookie"])){ //put, post
+      $ac = mysqli_escape_string($zbirka, $podatki["auth_cookie"]);
+      $ui = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
+    }
+    else { //get, delete
+      $ac = $_GET["auth_cookie"];
+      $ui = mysqli_escape_string($zbirka, $_GET["uporabnisko_ime"]);
+    }
+    $poizvedba = "SELECT auth_cookie FROM uporabniki WHERE uporabnisko_ime = '$ui'";
+    $rezultat = mysqli_query($zbirka, $poizvedba);
+    $vrstica = mysqli_fetch_assoc($rezultat);
+    if ($vrstica["auth_cookie"] != $ac){
+      echo "ac from js: " . $ac . "\n";
+      echo "ac from db: " . $vrstica["auth_cookie"] . "\n";
+      http_response_code(403); //auth failed, cookie is wrong
+      exit(); //ne it na switch statement
+    }
+  }
+
   switch($_SERVER["REQUEST_METHOD"]){
 
 	case 'GET':
-    session_start();
-    uporabnikRezervacije($_SESSION['uporabnisko_ime']);
+    uporabnikRezervacije($_GET['uporabnisko_ime']);
     break;
 
   case 'POST':
@@ -46,7 +72,7 @@ function uporabnikRezervacije($uporabnisko_ime){
   $uporabnisko_ime = mysqli_escape_string($zbirka, $uporabnisko_ime);
 
   $odgovor = array();
-  $poizvedba = "SELECT prevozi.kraj_odhoda, prevozi.kraj_prihoda, prevozi.cas_odhoda, rezervacije.st_oseb, rezervacije.nacin_placila, prevozi.voznik, rezervacije.id, rezervacije.id_prevoza FROM rezervacije LEFT OUTER JOIN prevozi ON prevozi.id = rezervacije.id_prevoza WHERE rezervacije.uporabnisko_ime = '$uporabnisko_ime' ORDER BY prevozi.cas_odhoda ASC";
+  $poizvedba = "SELECT prevozi.kraj_odhoda, prevozi.kraj_prihoda, prevozi.cas_odhoda, rezervacije.st_oseb, rezervacije.nacin_placila, prevozi.voznik, rezervacije.id, rezervacije.id_prevoza FROM rezervacije LEFT OUTER JOIN prevozi ON prevozi.id = rezervacije.id_prevoza WHERE rezervacije.uporabnisko_ime = '$uporabnisko_ime' AND prevozi.cas_odhoda > NOW() ORDER BY prevozi.cas_odhoda ASC";
   $rezultat = mysqli_query($zbirka, $poizvedba);
   while ($vrstica = mysqli_fetch_assoc($rezultat)) {
     $vrstica["cas_odhoda"] = date('d-m-Y H:i', strtotime($vrstica["cas_odhoda"]));
@@ -69,8 +95,7 @@ function rezerviraj(){
     $st_oseb = mysqli_escape_string($zbirka, $podatki["st_oseb"]);
     $nacin_placila = mysqli_escape_string($zbirka, $podatki["nacin_placila"]);
     $id_prevoza = mysqli_escape_string($zbirka, $podatki["id_prevoza"]);
-    session_start();
-    $uporabnisko_ime_prijavljenega = $_SESSION['uporabnisko_ime'];
+    $uporabnisko_ime_prijavljenega = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
 
     $poizvedba="INSERT INTO rezervacije (id, id_prevoza, uporabnisko_ime, imeinpriimek, email, tel, st_oseb, nacin_placila) VALUES (NULL, '$id_prevoza', '$uporabnisko_ime_prijavljenega', '$imeinpriimek', '$email', '$tel', '$st_oseb', '$nacin_placila')";
 
