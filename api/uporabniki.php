@@ -73,7 +73,7 @@ function pridobi_uporabnika($uporabnisko_ime){
   global $zbirka;
 
   $uporabnisko_ime = mysqli_escape_string($zbirka, $uporabnisko_ime);
-  $poizvedba = "SELECT * FROM uporabniki WHERE uporabnisko_ime = '$uporabnisko_ime'";
+  $poizvedba = "SELECT uporabnisko_ime, ime, priimek, email FROM uporabniki WHERE uporabnisko_ime = '$uporabnisko_ime'";
   $rezultat = mysqli_query($zbirka, $poizvedba);
   $vrstica = mysqli_fetch_assoc($rezultat); //samo ena vrstica
 
