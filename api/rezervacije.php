@@ -35,8 +35,9 @@
     break;
 
   case 'DELETE':
-    if (isset($_GET["id"])){
-      izbrisiRezervacijo($_GET["id"]);
+  $id = substr($_SERVER["PATH_INFO"], strpos($_SERVER["PATH_INFO"], "/") + 1);
+    if (!empty($id)){
+      izbrisiRezervacijo($id);
     }
     else {
       http_response_code(400);	// Bad Request

@@ -27,15 +27,17 @@
   switch($_SERVER["REQUEST_METHOD"]){
 
 	case 'GET':
-
     if (isset($_GET["cas_odhoda"])){ // klice se filter prevozov
       filterPrevozi();
     }
-    else if (isset($_GET["moje_ponudbe"])) {
-      uporabnikPonudbe($auth_user);
-    }
-    else if (isset($_GET["id"])) {
-      pridobiPotnike($_GET["id"]);
+    else if (isset($_SERVER["PATH_INFO"])){
+      $param = substr($_SERVER["PATH_INFO"], strpos($_SERVER["PATH_INFO"], "/") + 1);
+      if ($param == 'moje_ponudbe') {
+        uporabnikPonudbe($auth_user);
+      }
+      else {
+        pridobiPotnike($param);
+      }
     }
     else {
       vsiPrevozi(); //vsi prosti, ne pretekli prevozi
@@ -47,8 +49,9 @@
     break;
 
   case 'DELETE':
-    if (isset($_GET["id"])){
-      izbrisiPrevoz($_GET["id"]);
+    $id = substr($_SERVER["PATH_INFO"], strpos($_SERVER["PATH_INFO"], "/") + 1);
+    if (isset($id)){
+      izbrisiPrevoz($id);
     }
     else {
       http_response_code(400);	// Bad Request
