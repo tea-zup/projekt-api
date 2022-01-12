@@ -8,28 +8,17 @@
   header('Access-Control-Allow-Origin: *');	// Dovolimo dostop izven trenutne domene (CORS)
   header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 
-  $podatki = json_decode(file_get_contents('php://input'), true); //za avtentikacijo s piskotkom
-  if (!isset($podatki["auth_cookie"]) && !isset($_GET["auth_cookie"])){
+  $auth_user = mysqli_escape_string($zbirka, $_SERVER["HTTP_AUTH_USER"]);
+  $auth_cookie = mysqli_escape_string($zbirka, $_SERVER["HTTP_AUTH_COOKIE"]);
+  if (!isset($auth_user) || !isset($auth_cookie)){
     http_response_code(403); //auth failed, cookie not set
     exit(); //ne it na switch statement
   }
   else {
-    $ac = ''; //auth cookie
-    $ui = ''; //uporabnisko ime
-    if (isset($podatki["auth_cookie"])){ //put, post
-      $ac = mysqli_escape_string($zbirka, $podatki["auth_cookie"]);
-      $ui = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
-    }
-    else { //get, delete
-      $ac = $_GET["auth_cookie"];
-      $ui = mysqli_escape_string($zbirka, $_GET["uporabnisko_ime"]);
-    }
-    $poizvedba = "SELECT auth_cookie FROM uporabniki WHERE uporabnisko_ime = '$ui'";
+    $poizvedba = "SELECT auth_cookie FROM uporabniki WHERE uporabnisko_ime = '$auth_user'";
     $rezultat = mysqli_query($zbirka, $poizvedba);
     $vrstica = mysqli_fetch_assoc($rezultat);
-    if ($vrstica["auth_cookie"] != $ac){
-      echo "ac from js: " . $ac . "\n";
-      echo "ac from db: " . $vrstica["auth_cookie"] . "\n";
+    if ($vrstica["auth_cookie"] != $auth_cookie){
       http_response_code(403); //auth failed, cookie is wrong
       exit(); //ne it na switch statement
     }
@@ -38,11 +27,11 @@
   switch($_SERVER["REQUEST_METHOD"]){
 
 	case 'GET':
-    uporabnikRezervacije($_GET['uporabnisko_ime']);
+    uporabnikRezervacije($auth_user);
     break;
 
   case 'POST':
-    rezerviraj();
+    rezerviraj($auth_user);
     break;
 
   case 'DELETE':
@@ -83,7 +72,7 @@ function uporabnikRezervacije($uporabnisko_ime){
 
 }
 
-function rezerviraj(){
+function rezerviraj($uporabnisko_ime){
   global $zbirka, $DEBUG;
   $podatki = json_decode(file_get_contents('php://input'), true);
 
@@ -95,7 +84,7 @@ function rezerviraj(){
     $st_oseb = mysqli_escape_string($zbirka, $podatki["st_oseb"]);
     $nacin_placila = mysqli_escape_string($zbirka, $podatki["nacin_placila"]);
     $id_prevoza = mysqli_escape_string($zbirka, $podatki["id_prevoza"]);
-    $uporabnisko_ime_prijavljenega = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
+    $uporabnisko_ime_prijavljenega = mysqli_escape_string($zbirka, $uporabnisko_ime);
 
     $poizvedba="INSERT INTO rezervacije (id, id_prevoza, uporabnisko_ime, imeinpriimek, email, tel, st_oseb, nacin_placila) VALUES (NULL, '$id_prevoza', '$uporabnisko_ime_prijavljenega', '$imeinpriimek', '$email', '$tel', '$st_oseb', '$nacin_placila')";
 

@@ -8,28 +8,17 @@
   header('Access-Control-Allow-Origin: *');	// Dovolimo dostop izven trenutne domene (CORS)
   header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 
-  $podatki = json_decode(file_get_contents('php://input'), true); //za avtentikacijo s piskotkom
-  if (!isset($podatki["auth_cookie"]) && !isset($_GET["auth_cookie"])){
+  $auth_user = mysqli_escape_string($zbirka, $_SERVER["HTTP_AUTH_USER"]);
+  $auth_cookie = mysqli_escape_string($zbirka, $_SERVER["HTTP_AUTH_COOKIE"]);
+  if (!isset($auth_user) || !isset($auth_cookie)){
     http_response_code(403); //auth failed, cookie not set
     exit(); //ne it na switch statement
   }
   else {
-    $ac = ''; //auth cookie
-    $ui = ''; //uporabnisko ime
-    if (isset($podatki["auth_cookie"])){ //put, post
-      $ac = mysqli_escape_string($zbirka, $podatki["auth_cookie"]);
-      $ui = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
-    }
-    else { //get, delete
-      $ac = $_GET["auth_cookie"];
-      $ui = mysqli_escape_string($zbirka, $_GET["uporabnisko_ime"]);
-    }
-    $poizvedba = "SELECT auth_cookie FROM uporabniki WHERE uporabnisko_ime = '$ui'";
+    $poizvedba = "SELECT auth_cookie FROM uporabniki WHERE uporabnisko_ime = '$auth_user'";
     $rezultat = mysqli_query($zbirka, $poizvedba);
     $vrstica = mysqli_fetch_assoc($rezultat);
-    if ($vrstica["auth_cookie"] != $ac){
-      echo "ac from js: " . $ac . "\n";
-      echo "ac from db: " . $vrstica["auth_cookie"] . "\n";
+    if ($vrstica["auth_cookie"] != $auth_cookie){
       http_response_code(403); //auth failed, cookie is wrong
       exit(); //ne it na switch statement
     }
@@ -42,8 +31,8 @@
     if (isset($_GET["cas_odhoda"])){ // klice se filter prevozov
       filterPrevozi();
     }
-    else if (isset($_GET["uporabnisko_ime"]) && isset($_GET["moje_ponudbe"])) {
-      uporabnikPonudbe($_GET["uporabnisko_ime"]);
+    else if (isset($_GET["moje_ponudbe"])) {
+      uporabnikPonudbe($auth_user);
     }
     else if (isset($_GET["id"])) {
       pridobiPotnike($_GET["id"]);
@@ -54,7 +43,7 @@
 	  break;
 
   case 'POST':
-    dodajPrevoz();
+    dodajPrevoz($auth_user);
     break;
 
   case 'DELETE':
@@ -137,18 +126,18 @@ function uporabnikPonudbe($uporabnisko_ime){
   echo json_encode($odgovor);
 }
 
-function dodajPrevoz(){
+function dodajPrevoz($auth_user){
 
   global $zbirka;
   $podatki = json_decode(file_get_contents('php://input'), true);
 
-  if(isset($podatki["kraj_odhoda"], $podatki["kraj_prihoda"], $podatki["cas_odhoda"], $podatki["prosta_mesta"], $podatki["cena"], $podatki["uporabnisko_ime"])){
+  if(isset($podatki["kraj_odhoda"], $podatki["kraj_prihoda"], $podatki["cas_odhoda"], $podatki["prosta_mesta"], $podatki["cena"])){
     $kraj_odhoda = mysqli_escape_string($zbirka, $podatki["kraj_odhoda"]);
     $kraj_prihoda = mysqli_escape_string($zbirka, $podatki["kraj_prihoda"]);
     $cas_odhoda = mysqli_escape_string($zbirka, $podatki["cas_odhoda"]);
     $prosta_mesta = mysqli_escape_string($zbirka, $podatki["prosta_mesta"]);
     $cena = mysqli_escape_string($zbirka, $podatki["cena"]);
-    $voznik = mysqli_escape_string($zbirka, $podatki["uporabnisko_ime"]);
+    $voznik = mysqli_escape_string($zbirka, $auth_user);
 
     $poizvedba="INSERT INTO prevozi (id, voznik, kraj_odhoda, kraj_prihoda, cas_odhoda, prosta_mesta, cena) VALUES (NULL, '$voznik', '$kraj_odhoda', '$kraj_prihoda', '$cas_odhoda', '$prosta_mesta', '$cena')";
 
